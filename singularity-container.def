@@ -1,0 +1,16 @@
+bootstrap: docker
+from: nvcr.io/nvidia/pytorch:23.04-py3
+
+%environment
+export LC_ALL=C
+
+%post
+
+pip3 list freeze
+env | grep -i arch
+
+pip3 install nltk
+pip3 install transformers
+pip3 install tokenizers
+pip3 install datasets
+pip3 install flash-attn
