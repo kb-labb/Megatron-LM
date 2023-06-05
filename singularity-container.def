@@ -14,3 +14,4 @@ pip3 install transformers
 pip3 install tokenizers
 pip3 install datasets
 pip3 install flash-attn
+pip3 install einops
