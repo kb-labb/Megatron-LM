@@ -70,21 +70,15 @@ class Encoder(object):
         data = json.loads(json_line)
         ids = {}
         for key in self.args.json_keys:
-            # KB-HACK
-            # we have text stored in key=content which is a list of str
-            text_or_list = data[key]
-            if type(text_or_list) == str:
-                text_or_list = [text_or_list]
-
-            for text in text_or_list:
-                doc_ids = []
-                for sentence in Encoder.splitter.tokenize(text):
-                    sentence_ids = Encoder.tokenizer.tokenize(sentence)
-                    if len(sentence_ids) > 0:
-                        doc_ids.append(sentence_ids)
-                if len(doc_ids) > 0 and self.args.append_eod:
-                    doc_ids[-1].append(Encoder.tokenizer.eod)
-                ids[key] = doc_ids
+            text = data[key]
+            doc_ids = []
+            for sentence in Encoder.splitter.tokenize(text):
+                sentence_ids = Encoder.tokenizer.tokenize(sentence)
+                if len(sentence_ids) > 0:
+                    doc_ids.append(sentence_ids)
+            if len(doc_ids) > 0 and self.args.append_eod:
+                doc_ids[-1].append(Encoder.tokenizer.eod)
+            ids[key] = doc_ids
         return ids, len(json_line)
 
 def get_args():
