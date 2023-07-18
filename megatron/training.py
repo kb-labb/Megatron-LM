@@ -48,6 +48,56 @@ def print_datetime(string):
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print_rank_0('[' + string + '] datetime: {} '.format(time_str))
 
+def get_total_params(model):
+    # Print number of parameters.
+    if mpu.get_data_parallel_rank() == 0:
+        params = sum([p.nelement() for p in model.parameters()])
+        print(
+            " > number of parameters on model parallel rank {}: {}".format(
+                mpu.get_model_parallel_group(), params
+            ),
+            flush=True,
+        )
+    else:
+        params = 0
+
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    return total_n_parameters
+
+def human_readable_flops(num) -> str:
+    for unit in [
+        "",
+        "KFLOPS",
+        "MFLOPS",
+        "GFLOPS",
+        "TFLOPS",
+        "PFLOPS",
+        "EFLOPS",
+        "ZFLOPS",
+    ]:
+        if abs(num) < 1000.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1000.0
+    return "%.1f%s" % (num, "Yi")
+
+
+def get_flops(neox_args, model, iter_time_s) -> float:
+    world_size = torch.distributed.get_world_size()
+    ff = model[0].module.module.total_params * 6
+    attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
+    # args.train_batch_size doesn't exist in Megatron-LM
+    # This could be either be equivalent to args.global_batch_size 
+    # or args.micro_batch_size * world_size
+    flops = (
+        neox_args.global_batch_size # Global batch size should be the amount of samples processed per iteration
+        * neox_args.seq_length
+        * (ff + attn)
+        / (iter_time_s * world_size)
+    )
+    return flops
+
 
 def pretrain(train_valid_test_dataset_provider,
              model_provider,
@@ -224,6 +274,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
                 post_process=post_process
             )
             this_model.model_type = model_type
+            this_model.total_params = get_total_params(this_model)
             model.append(this_model)
     else:
         pre_process = mpu.is_pipeline_first_stage()
@@ -253,6 +304,7 @@ def get_model(model_provider_func, model_type=ModelType.encoder_or_decoder, wrap
                 post_process=post_process
             )
         model.model_type = model_type
+        model.total_params = get_total_params(model)
 
     if not isinstance(model, list):
         model = [model]
@@ -483,7 +535,7 @@ def train_step(forward_step_func, data_iterator,
     return {}, skipped_iter, grad_norm, num_zeros_in_grad
 
 
-def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
+def training_log(model, loss_dict, total_loss_dict, learning_rate, iteration,
                  loss_scale, report_memory_flag, skipped_iter,
                  grad_norm, params_norm, num_zeros_in_grad):
     """Log training information such as losses, timing, ...."""
@@ -646,6 +698,12 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             total_loss_dict[skipped_iters_key])
         log_string += ' number of nan iterations: {:3d} |'.format(
             total_loss_dict[nan_iters_key])
+        
+        flops = get_flops(args, model, elapsed_time_per_iteration)
+        flops = human_readable_flops(flops)
+
+        log_string += ' flops: {} |'.format(flops)
+
         total_loss_dict[advanced_iters_key] = 0
         total_loss_dict[skipped_iters_key] = 0
         total_loss_dict[nan_iters_key] = 0
@@ -711,7 +769,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         params_norm = None
         if args.log_params_norm:
             params_norm = calc_params_l2_norm(model)
-        report_memory_flag = training_log(loss_dict, total_loss_dict,
+
+        # Passing the entire model to the training log function seems a bit questionable
+        report_memory_flag = training_log(model, loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
@@ -841,6 +901,7 @@ def evaluate(forward_step_func,
         total_loss_dict[key] /= args.eval_iters * get_num_microbatches()
 
     return total_loss_dict, collected_non_loss_data
+
 
 def evaluate_and_print_results(prefix, forward_step_func,
                                data_iterator, model,

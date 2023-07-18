@@ -4,10 +4,8 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-CHECKPOINT_PATH=<Specify path>
-VOCAB_FILE=<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=<Specify path to file>/gpt2-merges.txt
-DATA_PATH=<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=checkpoints/gpt2_345m
+DATA_PATH=my-gpt_text_sentence
 
 GPT_ARGS="
     --num-layers 24 \
@@ -25,13 +23,14 @@ GPT_ARGS="
     --weight-decay 1e-2 \
     --lr-warmup-fraction .01 \
     --clip-grad 1.0 \
-    --fp16
+    --fp16 \
+    --use-flash-attn
 "
 
 DATA_ARGS="
     --data-path $DATA_PATH \
-    --vocab-file $VOCAB_FILE \
-    --merge-file $MERGE_FILE \
+    --tokenizer-name-or-path KBLab/unigram-64k-pretok-small_data-tokenizer \
+    --tokenizer-type PretrainedFromHF \
     --data-impl mmap \
     --split 949,50,1
 "
