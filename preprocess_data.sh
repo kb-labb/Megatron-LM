@@ -3,7 +3,6 @@ python tools/preprocess_data2.py \
        --output-prefix my-gpt \
        --tokenizer-name-or-path KBLab/unigram-64k-pretok-small_data-tokenizer \
        --tokenizer-type PretrainedFromHF \
-       --split-sentences \
        --workers 8 \
        --chunk-size 100 \
        --lang swedish \
