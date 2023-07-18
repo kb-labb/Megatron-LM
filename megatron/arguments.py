@@ -1030,9 +1030,12 @@ def _add_data_args(parser):
                        '1) a single data path, 2) multiple datasets in the'
                        'form: dataset1-weight dataset1-path dataset2-weight '
                        'dataset2-path ...')
-
     group.add_argument('--vocab-size', type=int, default=None,
                        help='Size of vocab before EOD or padding.')
+    group.add_argument('--pad-vocab-size-to', type=int, default=None,
+                       help='Pad the vocab size to this value.'
+                       'This value must be greater than the initial size of the tokenizer'
+                       ', needs to be divisible by TP size and `make-vocab-size-divisible-by`.')
     group.add_argument('--vocab-file', type=str, default=None,
                        help='Path to the vocab file.')
     group.add_argument('--merge-file', type=str, default=None,
