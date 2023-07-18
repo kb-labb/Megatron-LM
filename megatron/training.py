@@ -54,7 +54,7 @@ def get_total_params(model):
         params = sum([p.nelement() for p in model.parameters()])
         print(
             " > number of parameters on model parallel rank {}: {}".format(
-                mpu.get_model_parallel_group(), params
+                mpu.get_tensor_model_parallel_rank(), params
             ),
             flush=True,
         )
