@@ -24,9 +24,9 @@ except ImportError:
     rearrange = None
 
 try:
-    from flash_attn.flash_attn_interface import flash_attn_unpadded_func
+    from flash_attn.flash_attn_interface import flash_attn_varlen_func
 except ImportError:
-    flash_attn_unpadded_func = None
+    flash_attn_varlen_func = None
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -349,7 +349,7 @@ class FlashSelfAttention(torch.nn.Module):
     def __init__(self, causal=False, softmax_scale=None, attention_dropout=0.0,
                  device=None, dtype=None):
         super().__init__()
-        assert flash_attn_unpadded_func is not None, ('Please install FlashAttention first, '
+        assert flash_attn_varlen_func is not None, ('Please install FlashAttention first, '
                                                       'e.g., with pip install flash-attn')
         assert rearrange is not None, 'Please install einops first, e.g., with pip install einops'
         self.causal = causal
@@ -387,7 +387,7 @@ class FlashSelfAttention(torch.nn.Module):
                         device=q.device)
             self.dropout_p = 0
 
-        output = flash_attn_unpadded_func(
+        output = flash_attn_varlen_func(
             q, k, v, cu_seqlens_q, cu_seqlens_k, seqlen_q, seqlen_k,
             self.dropout_p,
             softmax_scale=self.softmax_scale, causal=is_causal
@@ -418,7 +418,7 @@ class ParallelAttention(MegatronModule):
 
         self.use_flash_attn = args.use_flash_attn
         if self.use_flash_attn:
-            if flash_attn_unpadded_func is None:
+            if flash_attn_varlen_func is None:
                 raise ImportError('FlashAttention is not installed, please install with '
                                   'pip install flash-attn')
             assert attention_type == AttnType.self_attn, ('FlashAttention code path only supports '
